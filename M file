@@ -1,0 +1,560 @@
+% Finite-element-analysis-of-three-dimensional-truss
+
+clear; clc; close all
+
+%% Plot Parmeters
+
+def_coeff = 100;
+
+dtext = 0.01;
+
+dF = 0.25;
+
+fn = 15;
+
+%% Truss Parameters
+
+E = 200 * 10 ^ 9; % Young module (N / m ^ 2)
+
+A = 25 * 10 ^ -4; % Area of each element (m ^ 2)
+
+a = 0.8; % Element length (m)
+
+nodes_coordinates = [0 0 0
+    0.75 0.5 0.8
+    0.75 -0.5 0.8
+    1 0 0
+    1.75 0.5 0.8
+    1.75 -0.5 0.8
+    2 0 0
+    2.75 0.5 0.8
+    2.75 -0.5 0.8
+    2.5 0 0] * a; % Global coordinates of nodes (m)
+
+[node_number, ~] = size(nodes_coordinates);
+
+K = zeros(3 * node_number);
+
+elemental_nodes = [1 2
+    1 3
+    1 4
+    2 3
+    2 4
+    4 3
+    4 5
+    4 6
+    4 7
+    5 2
+    5 6
+    5 8
+    5 7
+    3 6
+    3 5
+    7 10
+    8 10
+    8 9
+    9 10
+    5 9
+    6 9
+    6 10
+    6 7
+    7 8
+    7 9];
+
+boundary_conditions = [8 0 0 0
+    9 0 0 0
+    10 0 0 0]; % Boundary conditions ([Node number, displacement on x-axis, displacement on y-axis, displacement on z-axis])
+
+external_forces = [1 0 0 -20000
+    4 0 0 -20000
+    7 0 0 -20000]; % External forcers ([Node number, F_x, F_y, F_z]);
+
+%%
+
+f = nan(node_number * 3, 1);
+
+u = nan(node_number * 3, 1);
+
+z_force_n = setdiff(1 : node_number, external_forces(:, 1)); 
+
+z_forces = [z_force_n', zeros(length(z_force_n), 3)];
+
+forces = [external_forces; z_forces];
+
+[rowf, ~] = size(forces);
+
+C = zeros(length(elemental_nodes(:, 1)), 6);
+
+El_Force = zeros(length(elemental_nodes(:, 1)), 1);
+
+Ls = zeros(length(elemental_nodes(:, 1)), 1);
+
+for i = 1 : rowf
+    
+    f(forces(i, 1) * 3 - 2 : forces(i, 1) * 3) = transpose(forces(i, 2 : end));
+    
+end;
+
+[rowb, ~] = size(boundary_conditions);
+
+for i = 1 : rowb
+    
+    u(boundary_conditions(i, 1) * 3 - 2 : boundary_conditions(i, 1) * 3) = transpose(boundary_conditions(i, 2 : end));
+    
+end;
+
+figure(1)
+
+hold all
+
+axis tight
+
+axis equal
+
+grid on
+
+view([225 15])
+
+xlabel('x')
+
+ylabel('y')
+
+zlabel('z')
+
+set(gca, 'fontsize', 12)
+
+
+for i = 1 : length(elemental_nodes)
+    
+    x1 = nodes_coordinates(elemental_nodes(i, 1), 1);
+    
+    x2 = nodes_coordinates(elemental_nodes(i, 2), 1);
+    
+    y1 = nodes_coordinates(elemental_nodes(i, 1), 2);
+    
+    y2 = nodes_coordinates(elemental_nodes(i, 2), 2);
+    
+    z1 = nodes_coordinates(elemental_nodes(i, 1), 3);
+    
+    z2  = nodes_coordinates(elemental_nodes(i, 2), 3);
+    
+    L = sqrt((x1 - x2) ^ 2 + (y1 - y2) ^ 2 + (z1 - z2) ^ 2);
+    
+    cx = (x2 - x1) / L;
+    
+    cy = (y2 - y1) / L;
+    
+    cz = (z2 - z1) / L;
+    
+    C(i, :) = [-cx -cy -cz cx cy cz];
+    
+    Ls(i) = L;
+    
+    T = [cx cy cz 0 0 0
+        0 0 0 cx cy cz];
+    
+    k = E * A / L * [1 -1
+        -1 1];
+    
+    kk = T' * k * T;
+    
+    K(elemental_nodes(i, 1) * 3 - 2 : elemental_nodes(i, 1) * 3, elemental_nodes(i, 1) * 3 - 2 : elemental_nodes(i, 1) * 3) ...
+        = K(elemental_nodes(i, 1) * 3 - 2 : elemental_nodes(i, 1) * 3, elemental_nodes(i, 1) * 3 - 2 : elemental_nodes(i, 1) * 3) + kk(1 : 3, 1 : 3);
+    
+        K(elemental_nodes(i, 1) * 3 - 2 : elemental_nodes(i, 1) * 3, elemental_nodes(i, 2) * 3 - 2 : elemental_nodes(i, 2) * 3) ...
+        = K(elemental_nodes(i, 1) * 3 - 2 : elemental_nodes(i, 1) * 3, elemental_nodes(i, 2) * 3 - 2 : elemental_nodes(i, 2) * 3) + kk(1 : 3, 4 : 6);
+    
+        K(elemental_nodes(i, 2) * 3 - 2 : elemental_nodes(i, 2) * 3, elemental_nodes(i, 1) * 3 - 2 : elemental_nodes(i, 1) * 3) ...
+        = K(elemental_nodes(i, 2) * 3 - 2 : elemental_nodes(i, 2) * 3, elemental_nodes(i, 1) * 3 - 2 : elemental_nodes(i, 1) * 3) + kk(4 : 6, 1 : 3);
+    
+        K(elemental_nodes(i, 2) * 3 - 2 : elemental_nodes(i, 2) * 3, elemental_nodes(i, 2) * 3 - 2 : elemental_nodes(i, 2) * 3) ...
+        = K(elemental_nodes(i, 2) * 3 - 2 : elemental_nodes(i, 2) * 3, elemental_nodes(i, 2) * 3 - 2 : elemental_nodes(i, 2) * 3) + kk(4 : 6, 4 : 6);
+    
+    plot3([x1, x2], [y1, y2], [z1, z2], 'k-', 'linewidth', 1)
+
+    text((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2, num2str(i), 'fontsize', fn, 'color', 'b')
+            
+end;
+
+for i = 1 : node_number
+    
+    text(nodes_coordinates(i, 1) + dtext, nodes_coordinates(i, 2) + dtext, nodes_coordinates(i, 3) + dtext, num2str(i), 'fontsize', fn, 'color', 'r')
+    
+end
+
+KK = K;
+
+uz = find( ~isnan(u));
+
+ff =f;
+
+for i = 1 : length(uz)
+    
+    ff = ff - K(:, uz(i)) * u(uz(i));
+        
+end
+
+KK(uz, :) = [];
+
+KK(:, uz) = [];
+
+ff(uz) =[];
+
+d = KK \ ff;
+
+u_nan = find(isnan(u));
+
+uu = u;
+
+for i = 1 : length(u_nan)
+    
+    uu(u_nan(i)) = d(i);
+    
+end;
+
+F = K * uu;
+
+for i = 1 : node_number
+    
+    if ismember(i, boundary_conditions(:, 1))
+                                
+                if boundary_conditions(boundary_conditions(:, 1) == i, 2) == 0 && abs(F(3 * i -2)) >= 10 ^ -6
+                    
+                    if F(3 * i -2) > 0
+               
+                    plot3([nodes_coordinates(i, 1), nodes_coordinates(i, 1) + dF], ...
+                        [nodes_coordinates(i, 2), nodes_coordinates(i, 2)], ...
+                        [nodes_coordinates(i, 3), nodes_coordinates(i, 3)], 'r-', 'linewidth', 1.5)
+                    
+                        text((nodes_coordinates(i, 1) + nodes_coordinates(i, 1) + dF) / 2, ...
+                        (nodes_coordinates(i, 2) + nodes_coordinates(i, 2)) /2, ...
+                        (nodes_coordinates(i, 3) + nodes_coordinates(i, 3)) / 2, num2str(abs(F(i * 3 - 2))/1000, '%10.1f'), 'fontsize', fn - 2)
+                    
+                        
+                        plot3(nodes_coordinates(i, 1) + dF, nodes_coordinates(i, 2), nodes_coordinates(i, 3), 'rs', 'linewidth', 2)
+                        
+                    else
+                        
+                    plot3([nodes_coordinates(i, 1), nodes_coordinates(i, 1) - dF], ...
+                        [nodes_coordinates(i, 2), nodes_coordinates(i, 2)], ...
+                        [nodes_coordinates(i, 3), nodes_coordinates(i, 3)], 'r-', 'linewidth', 1.5)
+                    
+                        text((nodes_coordinates(i, 1) + nodes_coordinates(i, 1) - dF) / 2, ...
+                        (nodes_coordinates(i, 2) + nodes_coordinates(i, 2)) /2, ...
+                        (nodes_coordinates(i, 3) + nodes_coordinates(i, 3)) / 2, num2str(abs(F(i * 3 - 2))/1000, '%10.1f'), 'fontsize', fn - 2)
+                    
+                        
+                        plot3(nodes_coordinates(i, 1) - dF, nodes_coordinates(i, 2), nodes_coordinates(i, 3), 'rs', 'linewidth', 2)                        
+                        
+                        
+                    end
+                                         
+                    
+                end
+                    
+                if boundary_conditions(boundary_conditions(:, 1) == i, 3) == 0 && abs(F(3 * i -1)) >= 10 ^ -6
+                    
+                    if F(3 * i - 1)  > 0
+              
+                      plot3([nodes_coordinates(i, 1), nodes_coordinates(i, 1)], ...
+                        [nodes_coordinates(i, 2), nodes_coordinates(i, 2) + dF], ...
+                        [nodes_coordinates(i, 3), nodes_coordinates(i, 3)], 'r-', 'linewidth', 1.5)
+                    
+                        
+                        plot3(nodes_coordinates(i, 1), nodes_coordinates(i, 2) + dF, nodes_coordinates(i, 3), 'rs', 'linewidth', 2)
+                        
+                    
+                        text((nodes_coordinates(i, 1) + nodes_coordinates(i, 1)) / 2, ...
+                        (nodes_coordinates(i, 2) + nodes_coordinates(i, 2) + dF) /2, ...
+                        (nodes_coordinates(i, 3) + nodes_coordinates(i, 3)) / 2, num2str(abs(F(i * 3 - 1))/1000, '%10.1f'), 'fontsize', fn - 2)
+                    
+                    else
+ 
+                        plot3([nodes_coordinates(i, 1), nodes_coordinates(i, 1)], ...
+                        [nodes_coordinates(i, 2), nodes_coordinates(i, 2) - dF], ...
+                        [nodes_coordinates(i, 3), nodes_coordinates(i, 3)], 'r-', 'linewidth', 1.5)
+                    
+                        
+                        plot3(nodes_coordinates(i, 1), nodes_coordinates(i, 2) - dF, nodes_coordinates(i, 3), 'rs', 'linewidth', 2)
+                        
+                    
+                        text((nodes_coordinates(i, 1) + nodes_coordinates(i, 1)) / 2, ...
+                        (nodes_coordinates(i, 2) + nodes_coordinates(i, 2) - dF) /2, ...
+                        (nodes_coordinates(i, 3) + nodes_coordinates(i, 3)) / 2, num2str(abs(F(i * 3 - 1))/1000, '%10.1f'), 'fontsize', fn - 2)
+                        
+                    end
+                    
+                end
+                    
+                if boundary_conditions(boundary_conditions(:, 1) == i, 4) == 0 && abs(F(3 * i)) >= 10 ^ -6
+                    
+                    if F(3 * i) > 0
+                    
+                        plot3([nodes_coordinates(i, 1), nodes_coordinates(i, 1)], ...
+                        [nodes_coordinates(i, 2), nodes_coordinates(i, 2)], ...
+                        [nodes_coordinates(i, 3), nodes_coordinates(i, 3) + dF], 'r-', 'linewidth', 1.5)
+                    
+                        
+                        plot3(nodes_coordinates(i, 1), nodes_coordinates(i, 2), nodes_coordinates(i, 3) + dF, 'rs', 'linewidth', 2)
+                        
+                    
+                        text((nodes_coordinates(i, 1) + nodes_coordinates(i, 1)) / 2, ...
+                        (nodes_coordinates(i, 2) + nodes_coordinates(i, 2)) /2, ...
+                        (nodes_coordinates(i, 3) + nodes_coordinates(i, 3) + dF) / 2, num2str(abs(F(i * 3))/1000, '%10.1f'), 'fontsize', fn - 2)
+                    
+                    else
+                        
+                        plot3([nodes_coordinates(i, 1), nodes_coordinates(i, 1)], ...
+                        [nodes_coordinates(i, 2), nodes_coordinates(i, 2)], ...
+                        [nodes_coordinates(i, 3), nodes_coordinates(i, 3) - dF], 'r-', 'linewidth', 1.5)
+                    
+                        
+                        plot3(nodes_coordinates(i, 1), nodes_coordinates(i, 2), nodes_coordinates(i, 3) - dF, 'rs', 'linewidth', 2)
+                        
+                    
+                        text((nodes_coordinates(i, 1) + nodes_coordinates(i, 1)) / 2, ...
+                        (nodes_coordinates(i, 2) + nodes_coordinates(i, 2)) /2, ...
+                        (nodes_coordinates(i, 3) + nodes_coordinates(i, 3) - dF) / 2, num2str(abs(F(i * 3))/1000, '%10.1f'), 'fontsize', fn - 2)                        
+                        
+                    end
+                
+                end
+                
+    end
+    
+    if ismember(i, external_forces(:, 1))
+        
+        if ~isnan(external_forces( external_forces(:, 1) == i, 2)) && abs(F(3 * i -2)) >= 10 ^ -6
+            
+            if F(3 * i - 2) > 0
+            
+                        plot3([nodes_coordinates(i, 1), nodes_coordinates(i, 1) + dF], ...
+                        [nodes_coordinates(i, 2), nodes_coordinates(i, 2)], ...
+                        [nodes_coordinates(i, 3), nodes_coordinates(i, 3)], 'b-', 'linewidth', 1.5)
+                    
+                        text((nodes_coordinates(i, 1) + nodes_coordinates(i, 1) + dF) / 2, ...
+                        (nodes_coordinates(i, 2) + nodes_coordinates(i, 2)) /2, ...
+                        (nodes_coordinates(i, 3) + nodes_coordinates(i, 3)) / 2, num2str(abs(F(i * 3 - 2))/1000, '%10.1f'), 'fontsize', fn - 2)
+                    
+                    plot3(nodes_coordinates(i, 1) + dF, nodes_coordinates(i, 2), nodes_coordinates(i, 3), 'bs', 'linewidth', 2)
+                    
+            else
+                
+                        plot3([nodes_coordinates(i, 1), nodes_coordinates(i, 1) - dF], ...
+                        [nodes_coordinates(i, 2), nodes_coordinates(i, 2)], ...
+                        [nodes_coordinates(i, 3), nodes_coordinates(i, 3)], 'b-', 'linewidth', 1.5)
+                    
+                        text((nodes_coordinates(i, 1) + nodes_coordinates(i, 1) - dF) / 2, ...
+                        (nodes_coordinates(i, 2) + nodes_coordinates(i, 2)) /2, ...
+                        (nodes_coordinates(i, 3) + nodes_coordinates(i, 3)) / 2, num2str(abs(F(i * 3 - 2))/1000, '%10.1f'), 'fontsize', fn - 2)
+                    
+                    plot3(nodes_coordinates(i, 1) - dF, nodes_coordinates(i, 2), nodes_coordinates(i, 3), 'bs', 'linewidth', 2)                
+                
+            end
+                    
+        end
+        
+        if ~isnan(external_forces( external_forces(:, 1) == i, 3)) && abs(F(3 * i -1)) >= 10 ^ -6
+            
+            if F(3 * i - 1) > 0
+            
+                        plot3([nodes_coordinates(i, 1), nodes_coordinates(i, 1)], ...
+                        [nodes_coordinates(i, 2), nodes_coordinates(i, 2) + dF], ...
+                        [nodes_coordinates(i, 3), nodes_coordinates(i, 3)], 'b-', 'linewidth', 1.5)
+                    
+                        text((nodes_coordinates(i, 1) + nodes_coordinates(i, 1)) / 2, ...
+                        (nodes_coordinates(i, 2) + nodes_coordinates(i, 2) + dF) /2, ...
+                        (nodes_coordinates(i, 3) + nodes_coordinates(i, 3)) / 2, num2str(abs(F(i * 3 - 1))/1000, '%10.1f'), 'fontsize', fn - 2)
+                    
+                    plot3(nodes_coordinates(i, 1), nodes_coordinates(i, 2) + dF, nodes_coordinates(i, 3), 'bs', 'linewidth', 2)
+                    
+            else
+                
+                        plot3([nodes_coordinates(i, 1), nodes_coordinates(i, 1)], ...
+                        [nodes_coordinates(i, 2), nodes_coordinates(i, 2) - dF], ...
+                        [nodes_coordinates(i, 3), nodes_coordinates(i, 3)], 'b-', 'linewidth', 1.5)
+                    
+                        text((nodes_coordinates(i, 1) + nodes_coordinates(i, 1)) / 2, ...
+                        (nodes_coordinates(i, 2) + nodes_coordinates(i, 2) - dF) /2, ...
+                        (nodes_coordinates(i, 3) + nodes_coordinates(i, 3)) / 2, num2str(abs(F(i * 3 - 1))/1000, '%10.1f'), 'fontsize', fn - 2)
+                    
+                    plot3(nodes_coordinates(i, 1), nodes_coordinates(i, 2) - dF, nodes_coordinates(i, 3), 'bs', 'linewidth', 2)                
+                
+            end
+                    
+        end
+        
+        if ~isnan(external_forces( external_forces(:, 1) == i, 4)) && abs(F(3 * i)) >= 10 ^ -6
+            
+            if F(3 * i) > 0
+            
+                        plot3([nodes_coordinates(i, 1), nodes_coordinates(i, 1)], ...
+                        [nodes_coordinates(i, 2), nodes_coordinates(i, 2)], ...
+                        [nodes_coordinates(i, 3), nodes_coordinates(i, 3) + dF], 'b-', 'linewidth', 1.5)
+                    
+                        text((nodes_coordinates(i, 1) + nodes_coordinates(i, 1)) / 2, ...
+                        (nodes_coordinates(i, 2) + nodes_coordinates(i, 2)) /2, ...
+                        (nodes_coordinates(i, 3) + nodes_coordinates(i, 3) + dF) / 2, num2str(abs(F(i * 3))/1000, '%10.1f'), 'fontsize', fn - 2)
+                    
+                    plot3(nodes_coordinates(i, 1), nodes_coordinates(i, 2), nodes_coordinates(i, 3) + dF, 'bs', 'linewidth', 2)
+                    
+            else
+                        plot3([nodes_coordinates(i, 1), nodes_coordinates(i, 1)], ...
+                        [nodes_coordinates(i, 2), nodes_coordinates(i, 2)], ...
+                        [nodes_coordinates(i, 3), nodes_coordinates(i, 3) - dF], 'b-', 'linewidth', 1.5)
+                    
+                        text((nodes_coordinates(i, 1) + nodes_coordinates(i, 1)) / 2, ...
+                        (nodes_coordinates(i, 2) + nodes_coordinates(i, 2)) /2, ...
+                        (nodes_coordinates(i, 3) + nodes_coordinates(i, 3) - dF) / 2, num2str(abs(F(i * 3))/1000, '%10.1f'), 'fontsize', fn - 2)
+                    
+                    plot3(nodes_coordinates(i, 1), nodes_coordinates(i, 2), nodes_coordinates(i, 3) - dF, 'bs', 'linewidth', 2)                
+                
+            end
+                    
+        end       
+            
+        
+    end
+    
+end;
+        
+for i = 1 : length(elemental_nodes(:, 1))
+    
+    El_Force(i) = E * A / Ls(i) * C(i, :) * [uu(elemental_nodes(i, 1) * 3 - 2 : elemental_nodes(i, 1) * 3); ...
+        uu(elemental_nodes(i, 2) * 3 - 2 : elemental_nodes(i, 2) * 3)];
+    
+end
+
+%% Deflected Truss Plot
+
+defected_u = nodes_coordinates + def_coeff * transpose(reshape(uu, 3, node_number));
+
+figure(2)
+
+hold all
+
+axis tight
+
+axis equal
+
+grid on
+
+view([225 15])
+
+axis off
+
+set(gca, 'fontsize', 12)
+
+jetcustom = jet(length(elemental_nodes(:, 1)));
+
+[~, El_Force_Col] = sort(El_Force);
+
+for i = 1 : length(elemental_nodes)
+    
+    x1 = nodes_coordinates(elemental_nodes(i, 1), 1);
+    
+    x2 = nodes_coordinates(elemental_nodes(i, 2), 1);
+    
+    y1 = nodes_coordinates(elemental_nodes(i, 1), 2);
+    
+    y2 = nodes_coordinates(elemental_nodes(i, 2), 2);
+    
+    z1 = nodes_coordinates(elemental_nodes(i, 1), 3);
+    
+    z2  = nodes_coordinates(elemental_nodes(i, 2), 3);
+    
+    plot3([x1, x2], [y1, y2], [z1, z2], 'k--', 'linewidth', 0.25)
+
+    xx1 = defected_u(elemental_nodes(i, 1), 1);
+    
+    xx2 = defected_u(elemental_nodes(i, 2), 1);
+    
+    yy1 = defected_u(elemental_nodes(i, 1), 2);
+    
+    yy2 = defected_u(elemental_nodes(i, 2), 2);
+    
+    zz1 = defected_u(elemental_nodes(i, 1), 3);
+    
+    zz2  =defected_u(elemental_nodes(i, 2), 3);
+    
+    plot3([xx1, xx2], [yy1, yy2], [zz1, zz2], '-', 'linewidth', 2, 'Color',  jetcustom(El_Force_Col == i, :))
+    
+    text((xx1 + xx2) / 2, (yy1 + yy2) / 2, (zz1 + zz2) / 2, num2str(i), 'fontsize', fn, 'color', 'b')
+            
+end;
+
+for i = 1 : node_number
+    
+    text(defected_u(i, 1) + dtext, defected_u(i, 2) + dtext, defected_u(i, 3) + dtext, num2str(i), 'fontsize', fn, 'color', 'r')
+    
+end
+
+
+%% CSV File Writing
+
+Els = transpose(1 : length(elemental_nodes));
+
+N_1_x = zeros(length(Els), 1);
+
+N_1_y = zeros(length(Els), 1);
+
+N_1_z = zeros(length(Els), 1);
+
+N_2_x = zeros(length(Els), 1);
+
+N_2_y = zeros(length(Els), 1);
+
+N_2_z = zeros(length(Els), 1);
+
+Def_1_x =  zeros(length(Els), 1);
+
+Def_1_y =  zeros(length(Els), 1);
+
+Def_1_z =  zeros(length(Els), 1);
+
+Def_2_x =  zeros(length(Els), 1);
+
+Def_2_y =  zeros(length(Els), 1);
+
+Def_2_z =  zeros(length(Els), 1);
+
+for i = 1 : length(Els)
+    
+    N_1_x(i) = nodes_coordinates(elemental_nodes(i, 1), 1);
+    
+    N_1_y(i) = nodes_coordinates(elemental_nodes(i, 1), 2);
+    
+    N_1_z(i) = nodes_coordinates(elemental_nodes(i, 1), 3);
+    
+    N_2_x(i) = nodes_coordinates(elemental_nodes(i, 2), 1);
+    
+    N_2_y(i) = nodes_coordinates(elemental_nodes(i, 2), 2);
+    
+    N_2_z(i) = nodes_coordinates(elemental_nodes(i, 2), 3);
+    
+    Def_1_x(i) =  uu(elemental_nodes(i, 1) * 3 -2);
+
+    Def_1_y(i) =  uu(elemental_nodes(i, 1) * 3 -1);
+
+    Def_1_z(i) =  uu(elemental_nodes(i, 1) * 3);
+
+    Def_2_x(i) =  uu(elemental_nodes(i, 2) * 3 -2);
+
+    Def_2_y(i) =  uu(elemental_nodes(i, 2) * 3 -1);
+
+    Def_2_z(i) =  uu(elemental_nodes(i, 2) * 3);
+ 
+end
+
+El_Force = El_Force / 1000;
+
+N_1 = elemental_nodes(:, 1);
+
+N_2 = elemental_nodes(:, 2);
+
+Table = table(Els, N_1, N_2, N_1_x, N_1_y, N_1_z, ...
+    N_2_x, N_2_y, N_2_z, Def_1_x, ...
+    Def_1_y, Def_1_z, Def_2_x, ...
+    Def_2_y, Def_2_z, El_Force);
+
+writetable(Table,'myTruss.csv') % Save results on a csv file

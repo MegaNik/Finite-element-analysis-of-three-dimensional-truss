@@ -1,1 +1,0 @@
-# Finite-element-analysis-of-three-dimensional-truss
